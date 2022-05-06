@@ -1,8 +1,9 @@
 # distutils: language = c++
 # cython: language_level=3, linetrace=True
 
+from libc.stdlib cimport malloc, free
 from libc.stdio cimport printf, fprintf, FILE, fopen, fclose
-from libc.string cimport memcpy
+from libc.string cimport memcpy, strlen
 from libcpp.vector cimport vector
 from libcpp.string cimport string
 
@@ -67,20 +68,34 @@ cdef class Sequence:
         else:
             buffer.format = NULL
         buffer.buf = &self._seq.m_CharVec.data()[1]
-        buffer.internal = NULL
+        buffer.internal = <void*> malloc(sizeof(Py_ssize_t))
         buffer.itemsize = sizeof(char)
-        buffer.len = (len(self._seq.m_CharVec) - 1) * sizeof(char)
         buffer.ndim = 1
         buffer.obj = self
         buffer.readonly = True
-        # buffer.shape = self._shape
+        buffer.shape = <Py_ssize_t*> buffer.internal
+        buffer.len = (len(self._seq.m_CharVec) - 1) * sizeof(char)
+        buffer.shape[0] = buffer.len
         buffer.suboffsets = NULL
         buffer.strides = NULL
+
+    def __releasebuffer__(self, Py_buffer* buffer):
+        free(buffer.internal)
+
+    def __repr__(self):
+        cdef type  ty  = type(self)
+        cdef bytes seq = memoryview(self).tobytes()
+        return f"{ty.__module__}.{ty.__name__}({self.name!r}, {seq!r})"
 
     @property
     def name(self):
         assert self._seq is not NULL
         return <bytes> self._seq.m_Label
+
+    @property
+    def sequence(self):
+        assert self._seq is not NULL
+        return <bytes> self._seq.m_CharVec
 
     cpdef Sequence copy(self):
         assert self._seq != NULL
@@ -113,12 +128,68 @@ cdef class MultiSequence:
         return self._mseq.m_Seqs.size()
 
 
+cdef class _AlignmentSequences:
+    cdef Alignment _alignment
+
+    def __cinit__(self, Alignment alignment):
+        self._alignment = alignment
+
+    def __len__(self):
+        return self._alignment.m_uSeqCount
+
+    def __getitem__(self, ssize_t i):
+
+        cdef Sequence seq
+        cdef ssize_t  index     = i
+        cdef unsigned seq_count = self._alignment._msa.m_uSeqCount
+        cdef unsigned col_count = self._alignment._msa.m_uColCount
+
+        if index < 0:
+            index += seq_count
+        if index < 0 or index >= seq_count:
+            raise IndexError(i)
+
+        seq = Sequence.__new__(Sequence)
+        seq._seq = _Sequence.NewSequence()
+        seq._seq.m_Label = string(self._alignment._msa.m_szNames[index])
+
+        seq._seq.m_CharVec.reserve(col_count + 1)
+        seq._seq.m_CharVec[0] = b'@'
+        memcpy(&seq._seq.m_CharVec[1], self._alignment._msa.m_szSeqs[index], col_count*sizeof(char))
+
+        seq._seq.m_CharVec.assign(
+            self._alignment._msa.m_szSeqs[index],
+            self._alignment._msa.m_szSeqs[index] + col_count
+        )
+
+        return seq
+
+
 cdef class Alignment:
 
     cdef _MSA _msa
 
     def __cinit__(self):
         self._msa = _MSA()
+
+    def __copy__(self):
+        return self.copy()
+
+    @property
+    def names(self):
+        return tuple(
+            <bytes> self._msa.m_szNames[i]
+            for i in range(self._msa.m_uSeqCount)
+        )
+
+    @property
+    def sequences(self):
+        return _AlignmentSequences.__new__(_AlignmentSequences, self)
+
+    cpdef Alignment copy(self):
+        cdef Alignment copy = Alignment.__new__(Alignment)
+        copy._msa.Copy(self._msa)
+        return copy
 
 
 cdef class Aligner:

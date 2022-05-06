@@ -37,4 +37,6 @@ cdef extern from "msa.h":
         void ToFASTAFile(FILE* f) const
         void ToFASTAFile(const string& FileName) const
 
+        void GetSeqLabel(unsigned int SeqIndex, string& Label) const
+
         void Copy(const MSA &msa)
