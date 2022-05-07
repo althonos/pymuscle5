@@ -214,14 +214,56 @@ cdef class Aligner:
 
         self._mpcflat.m_TreePerm = TREEPERM.TP_None
 
+    cdef _alloc_pair_count(self, unsigned int pair_count):
+        if pair_count < self._mpcflat.m_ptrSparsePosts.size():
+            return
+        self._mpcflat.m_SparsePosts1.resize(pair_count)
+        self._mpcflat.m_SparsePosts2.resize(pair_count)
+
+    cdef _init_seqs(self, MultiSequence sequences):
+        cdef unsigned int i
+        cdef _Sequence*   seq
+        cdef string       label
+        cdef unsigned int seq_count = sequences._mseq.GetSeqCount()
+
+        self._mpcflat.m_InputSeqs = sequences._mseq
+        self._mpcflat.m_Labels.clear()
+        self._mpcflat.m_LabelToIndex.clear()
+
+        for i in range(seq_count):
+            seq = <_Sequence*> sequences._mseq.GetSequence(i)
+            seq.m_SMI = i
+            label = seq.GetLabel()
+            self._mpcflat.m_Labels.push_back(label)
+            if self._mpcflat.m_LabelToIndex.find(label) != self._mpcflat.m_LabelToIndex.end():
+                raise KeyError("Duplicate label: {!r}".format(label.decode('utf-8', 'replace')))
+            self._mpcflat.m_LabelToIndex[label] = i
+
     cpdef object align(
         self,
         MultiSequence sequences,
         unsigned int seed = 0,
     ):
-        self._mpcflat.Run(sequences._mseq)
+        cdef Alignment    msa        = Alignment.__new__(Alignment)
+        cdef unsigned int seq_count  = sequences._mseq.GetSeqCount()
+        cdef unsigned int pair_count = seq_count*(seq_count - 1) / 2
 
-        cdef Alignment msa = Alignment.__new__(Alignment)
-        self._mpcflat.m_MSA.ToMSA(msa._msa)
+        if seq_count == 0:
+            msa._msa.Clear()
+        elif seq_count == 1:
+            msa._msa.FromSequence(sequences._mseq.m_Seqs[0][0])
+        else:
+            self._mpcflat.Clear()
+            self._alloc_pair_count(pair_count)
+            self._init_seqs(sequences._mseq)
+            self._mpcflat.InitPairs()
+            self._mpcflat.InitDistMx()
+            self._mpcflat.CalcPosteriors()
+            self._mpcflat.Consistency()
+            self._mpcflat.CalcGuideTree()
+            self._mpcflat.CalcJoinOrder()
+            self._mpcflat.ProgressiveAlign()
+            self._mpcflat.Refine()
+            self._mpcflat.m_MSA.ToMSA(msa._msa)
 
         return msa

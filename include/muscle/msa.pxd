@@ -40,3 +40,9 @@ cdef extern from "msa.h":
         void GetSeqLabel(unsigned int SeqIndex, string& Label) const
 
         void Copy(const MSA &msa)
+
+        void LogMe() const
+        void Clear()
+
+        unsigned GetSeqCount() const
+        unsigned GetColCount() const
