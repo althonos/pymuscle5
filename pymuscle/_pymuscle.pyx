@@ -33,9 +33,14 @@ muscle.opt_threads = 1
 muscle.opt_quiet = True
 
 
+ctypedef unsigned int uint
+
+
 cdef class Sequence:
 
     cdef _Sequence* _seq
+
+    # --- Magic methods ------------------------------------------------------
 
     def __cinit__(self):
         self._seq = NULL
@@ -97,6 +102,8 @@ cdef class Sequence:
         cdef bytes seq = memoryview(self).tobytes()
         return f"{ty.__module__}.{ty.__name__}({self.name!r}, {seq!r})"
 
+    # --- Properties ---------------------------------------------------------
+
     @property
     def name(self):
         assert self._seq is not NULL
@@ -106,6 +113,8 @@ cdef class Sequence:
     def sequence(self):
         assert self._seq is not NULL
         return <bytes> self._seq.m_CharVec
+
+    # --- Python interface ---------------------------------------------------
 
     cpdef Sequence copy(self):
         assert self._seq != NULL
@@ -117,12 +126,16 @@ cdef class MultiSequence:
 
     cdef _MultiSequence* _mseq
 
+    # --- Class methods ------------------------------------------------------
+
     @classmethod
     def from_file(cls, filename):
         cdef bytes _filename = os.fsencode(filename)
         cdef MultiSequence obj = cls.__new__(cls)
         obj._mseq = new _MultiSequence(<string> _filename)
         return obj
+
+    # --- Magic methods ------------------------------------------------------
 
     def __cinit__(self):
         self._mseq = NULL
@@ -139,7 +152,10 @@ cdef class MultiSequence:
 
 
 cdef class _AlignmentSequences:
+
     cdef Alignment _alignment
+
+    # --- Magic methods ------------------------------------------------------
 
     def __cinit__(self, Alignment alignment):
         self._alignment = alignment
@@ -179,11 +195,15 @@ cdef class Alignment:
 
     cdef _MSA _msa
 
+    # --- Magic methods ------------------------------------------------------
+
     def __cinit__(self):
         self._msa = _MSA()
 
     def __copy__(self):
         return self.copy()
+
+    # --- Properties ---------------------------------------------------------
 
     @property
     def names(self):
@@ -196,17 +216,19 @@ cdef class Alignment:
     def sequences(self):
         return _AlignmentSequences.__new__(_AlignmentSequences, self)
 
+    # --- Python interface ---------------------------------------------------
+
     cpdef Alignment copy(self):
         cdef Alignment copy = Alignment.__new__(Alignment)
         copy._msa.Copy(self._msa)
         return copy
 
 
-ctypedef unsigned int uint
-
 cdef class Aligner:
 
     cdef MPCFlat _mpcflat
+
+    # --- Magic methods ------------------------------------------------------
 
     def __cinit__(self):
         self._mpcflat.Clear()
@@ -226,13 +248,15 @@ cdef class Aligner:
 
         self._mpcflat.m_TreePerm = TREEPERM.TP_None
 
-    cdef _alloc_pair_count(self, unsigned int pair_count):
+    # --- C interface --------------------------------------------------------
+
+    cpdef void _alloc_pair_count(self, unsigned int pair_count) except +:
         if pair_count < self._mpcflat.m_ptrSparsePosts.size():
             return
         self._mpcflat.m_SparsePosts1.resize(pair_count)
         self._mpcflat.m_SparsePosts2.resize(pair_count)
 
-    cdef _calc_guide_tree(self):
+    cpdef void _calc_guide_tree(self) except +:
         # if randomchaintree:
         #     CalcGuideTree_RandomChain()
         #     return
@@ -246,48 +270,47 @@ cdef class Aligner:
             self._mpcflat.m_TreePerm
         )
 
-    cdef _calc_join_order(self):
-        muscle.pprog.GetGuideTreeJoinOrder(
-            self._mpcflat.m_GuideTree,
-            self._mpcflat.m_LabelToIndex,
-            self._mpcflat.m_JoinIndexes1,
-            self._mpcflat.m_JoinIndexes2,
-        )
-        muscle.pprog.ValidateJoinOrder(
-            self._mpcflat.m_JoinIndexes1,
-            self._mpcflat.m_JoinIndexes2,
-        )
+    cpdef void _calc_join_order(self) except +:
+        with nogil:
+            muscle.pprog.GetGuideTreeJoinOrder(
+                self._mpcflat.m_GuideTree,
+                self._mpcflat.m_LabelToIndex,
+                self._mpcflat.m_JoinIndexes1,
+                self._mpcflat.m_JoinIndexes2,
+            )
+            muscle.pprog.ValidateJoinOrder(
+                self._mpcflat.m_JoinIndexes1,
+                self._mpcflat.m_JoinIndexes2,
+            )
 
-    cdef _calc_posteriors(self):
-        cdef unsigned int pair_index
-        cdef unsigned int pair_count = self._mpcflat.m_Pairs.size()
-
-        for pair_index in range(pair_count):
+    cpdef void _calc_posterior(self, unsigned int pair_index) except +:
+        with nogil:
             self._mpcflat.CalcPosterior(pair_index)
 
-    cdef _consistency(self):
-        cdef unsigned int iteration
-        cdef unsigned int seq_count = self._mpcflat.GetSeqCount()
-
-        if seq_count < 3:
-            return
-
-        for iteration in range(self._mpcflat.m_ConsistencyIterCount):
-            self._consiter(iteration)
-
-    cdef _consiter(self, unsigned int iteration):
+    cpdef void _calc_posteriors(self, object pool) except +:
         cdef unsigned int pair_index
         cdef unsigned int pair_count = self._mpcflat.m_Pairs.size()
+        pool.map(self._calc_posterior, range(pair_count))
 
-        if pair_count <= 0:
-            raise ValueError("pair count should be strictly positive")
+    cpdef void _consistency(self, object pool) except +:
+        cdef unsigned int iteration
+        cdef unsigned int seq_count = self._mpcflat.GetSeqCount()
+        if seq_count < 3:
+            return
+        for iteration in range(self._mpcflat.m_ConsistencyIterCount):
+            self._consiter(iteration, pool)
 
-        for pair_index in range(pair_count):
+    cpdef void _conspair(self, unsigned int pair_index) except +:
+        with nogil:
             self._mpcflat.ConsPair(pair_index)
 
+    cpdef void _consiter(self, unsigned int iteration, object pool) except +:
+        cdef unsigned int pair_index
+        cdef unsigned int pair_count = self._mpcflat.m_Pairs.size()
+        pool.map(self._conspair, range(pair_count))
         self._mpcflat.m_ptrSparsePosts, self._mpcflat.m_ptrUpdatedSparsePosts = self._mpcflat.m_ptrUpdatedSparsePosts, self._mpcflat.m_ptrSparsePosts
 
-    cdef _init_dist_mx(self):
+    cpdef void _init_dist_mx(self) except +:
         cdef unsigned int i
         cdef unsigned int seq_count = self._mpcflat.GetSeqCount()
 
@@ -298,7 +321,7 @@ cdef class Aligner:
             self._mpcflat.m_DistMx[i].resize(seq_count, FLT_MAX)
             self._mpcflat.m_DistMx[i][i] = 0
 
-    cdef _init_pairs(self):
+    cpdef void _init_pairs(self) except +:
         cdef unsigned int                     seq_index1
         cdef unsigned int                     seq_index2
         cdef pair[unsigned int, unsigned int] seq_pair
@@ -315,7 +338,7 @@ cdef class Aligner:
                 self._mpcflat.m_PairToIndex[seq_pair] = pair_index
                 pair_index += 1
 
-    cdef _init_seqs(self, MultiSequence sequences):
+    cpdef void _init_seqs(self, MultiSequence sequences) except +:
         cdef unsigned int i
         cdef _Sequence*   seq
         cdef string       label
@@ -334,17 +357,18 @@ cdef class Aligner:
                 raise KeyError("Duplicate label: {!r}".format(label.decode('utf-8', 'replace')))
             self._mpcflat.m_LabelToIndex[label] = i
 
-    cdef _refine(self):
+    cpdef void _refine(self) except +:
         cdef unsigned int iteration
         cdef unsigned int seq_count = self._mpcflat.GetSeqCount()
 
         for iteration in range(self._mpcflat.m_RefineIterCount):
             self._mpcflat.RefineIter()
 
+    # --- Python interface ---------------------------------------------------
+
     cpdef object align(
         self,
         MultiSequence sequences,
-        unsigned int seed = 0,
     ):
         cdef Alignment    msa        = Alignment.__new__(Alignment)
         cdef unsigned int seq_count  = sequences._mseq.GetSeqCount()
@@ -355,17 +379,18 @@ cdef class Aligner:
         elif seq_count == 1:
             msa._msa.FromSequence(sequences._mseq.m_Seqs[0][0])
         else:
-            self._mpcflat.Clear()
-            self._alloc_pair_count(pair_count)
-            self._init_seqs(sequences)
-            self._init_pairs()
-            self._init_dist_mx()
-            self._calc_posteriors()
-            self._consistency()
-            self._calc_guide_tree()
-            self._calc_join_order()
-            self._mpcflat.ProgressiveAlign()
-            self._refine()
-            self._mpcflat.m_MSA.ToMSA(msa._msa)
+            with multiprocessing.pool.ThreadPool() as pool:
+                self._mpcflat.Clear()
+                self._alloc_pair_count(pair_count)
+                self._init_seqs(sequences)
+                self._init_pairs()
+                self._init_dist_mx()
+                self._calc_posteriors(pool)
+                self._consistency(pool)
+                self._calc_guide_tree()
+                self._calc_join_order()
+                self._mpcflat.ProgressiveAlign()
+                self._refine()
+                self._mpcflat.m_MSA.ToMSA(msa._msa)
 
         return msa
