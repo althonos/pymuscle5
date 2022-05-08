@@ -9,7 +9,9 @@ from libcpp.vector cimport vector
 from libcpp.string cimport string
 from libcpp.pair cimport pair
 
+cimport cython
 from cpython.buffer cimport PyBUF_READ, PyBUF_FORMAT
+from cpython.bytes cimport PyBytes_FromStringAndSize
 from cpython.memoryview cimport PyMemoryView_FromMemory
 
 cimport muscle
@@ -29,32 +31,43 @@ import threading
 import warnings
 import multiprocessing.pool
 
+# set global parameters to disable progress report / OpenMP multithreading
 muscle.opt_threads = 1
 muscle.opt_quiet = True
 
+# set global alphabet & HMM transition parameters
+SetAlpha(ALPHA.ALPHA_Amino)
+cdef HMMParams HP
+HP.FromDefaults(False)
+HP.ToPairHMM()
 
+# type alias to use in
 ctypedef unsigned int uint
 
 
+@cython.no_gc_clear
 cdef class Sequence:
 
+    cdef object     _owner
     cdef _Sequence* _seq
 
     # --- Magic methods ------------------------------------------------------
 
     def __cinit__(self):
+        self._owner = None
         self._seq = NULL
 
     def __dealloc__(self):
-        _Sequence.DeleteSequence(self._seq)
+        if self._owner is None:
+            _Sequence.DeleteSequence(self._seq)
         self._seq = NULL
+        self._owner = None
 
     def __init__(
         self,
         bytes name not None,
         const unsigned char[::1] sequence not None,
     ):
-
         if self._seq != NULL:
             _Sequence.DeleteSequence(self._seq)
         self._seq = _Sequence.NewSequence()
@@ -82,25 +95,29 @@ cdef class Sequence:
             buffer.format = b"B"
         else:
             buffer.format = NULL
-        buffer.buf = &self._seq.m_CharVec.data()[1]
         buffer.internal = <void*> malloc(sizeof(Py_ssize_t))
         buffer.itemsize = sizeof(char)
         buffer.ndim = 1
         buffer.obj = self
         buffer.readonly = True
         buffer.shape = <Py_ssize_t*> buffer.internal
-        buffer.len = (len(self._seq.m_CharVec) - 1) * sizeof(char)
-        buffer.shape[0] = buffer.len
         buffer.suboffsets = NULL
         buffer.strides = NULL
+
+        if self._seq.m_CharVec.at(0) == b'@':
+            buffer.buf = &self._seq.m_CharVec.data()[1]
+            buffer.len = (self._seq.m_CharVec.size() - 1) * sizeof(char)
+        else:
+            buffer.buf = self._seq.m_CharVec.data()
+            buffer.len = self._seq.m_CharVec.size() * sizeof(char)
+        buffer.shape[0] = buffer.len
 
     def __releasebuffer__(self, Py_buffer* buffer):
         free(buffer.internal)
 
     def __repr__(self):
         cdef type  ty  = type(self)
-        cdef bytes seq = memoryview(self).tobytes()
-        return f"{ty.__module__}.{ty.__name__}({self.name!r}, {seq!r})"
+        return f"{ty.__module__}.{ty.__name__}({self.name!r}, {self.sequence!r})"
 
     # --- Properties ---------------------------------------------------------
 
@@ -112,7 +129,15 @@ cdef class Sequence:
     @property
     def sequence(self):
         assert self._seq is not NULL
-        return <bytes> self._seq.m_CharVec
+        if self._seq.m_CharVec.at(0) == b'@':
+            return PyBytes_FromStringAndSize(
+                &self._seq.m_CharVec.data()[1],
+                self._seq.m_CharVec.size() - 1
+            )
+        return PyBytes_FromStringAndSize(
+            self._seq.m_CharVec.data(),
+            self._seq.m_CharVec.size()
+        )
 
     # --- Python interface ---------------------------------------------------
 
@@ -150,6 +175,23 @@ cdef class MultiSequence:
         assert self._mseq != NULL
         return self._mseq.m_Seqs.size()
 
+    def __getitem__(self, ssize_t i):
+        assert self._mseq != NULL
+
+        cdef Sequence seq
+        cdef ssize_t  index = i
+
+        if index < 0:
+            index += self._mseq.m_Seqs.size()
+        if index < 0 or index >= <ssize_t> self._mseq.m_Seqs.size():
+            raise IndexError(i)
+
+        seq = Sequence.__new__(Sequence)
+        seq._owner = self
+        seq._seq = <_Sequence*> self._mseq.m_Seqs[index]
+
+        return seq
+
 
 cdef class _AlignmentSequences:
 
@@ -161,7 +203,7 @@ cdef class _AlignmentSequences:
         self._alignment = alignment
 
     def __len__(self):
-        return self._alignment.m_uSeqCount
+        return self._alignment._msa.m_uSeqCount
 
     def __getitem__(self, ssize_t i):
 
