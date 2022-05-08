@@ -317,6 +317,10 @@ class build_ext(_build_ext):
         #         self._simd_flags["NEON"].extend(self._neon_flags())
         #         self._simd_defines["NEON"].append(("__ARM_NEON__", 1))
 
+        # add the include dirs
+        for ext in self.extensions:
+            ext.include_dirs.append(self._clib_cmd.build_clib)
+
         # cythonize the extensions (retaining platform-specific sources)
         platform_sources = [ext.platform_sources for ext in self.extensions]
         self.extensions = cythonize(self.extensions, **cython_args)
@@ -365,6 +369,12 @@ class build_clib(_build_clib):
             if os.path.isfile(binfile):
                 os.remove(binfile)
 
+    def _publicize(self, input, output):
+        with open(input, "rb") as src:
+            with open(output, "wb") as dst:
+                for line in src:
+                    dst.write(line.replace(b"private:", b"public:"))
+
     # --- Compatibility with base `build_clib` command ---
 
     def check_library_list(self, libraries):
@@ -404,6 +414,29 @@ class build_clib(_build_clib):
             elif self.compiler.compiler_type == "msvc":
                 library.extra_compile_args.append("/Z7")
 
+        # expose all private members and copy headers to build directory
+        for header in library.depends:
+            output = os.path.join(self.build_clib, os.path.basename(header))
+            self.make_file(
+                [header],
+                output,
+                self._publicize,
+                (header, output)
+            )
+
+        # copy sources to build directory
+        sources = [
+            os.path.join(self.build_temp, os.path.basename(source))
+            for source in library.sources
+        ]
+        for source, source_copy in zip(library.sources, sources):
+            self.make_file(
+                [source],
+                source_copy,
+                self.copy_file,
+                (source, source_copy)
+            )
+
         # store compile args
         compile_args = (
             library.define_macros,
@@ -414,9 +447,8 @@ class build_clib(_build_clib):
             library.depends,
         )
         # manually prepare sources and get the names of object files
-        sources = library.sources.copy()
         objects = [
-            os.path.join(self.build_temp, s.replace(".cpp", self.compiler.obj_extension))
+            s.replace(".cpp", self.compiler.obj_extension)
             for s in sources
         ]
         # only compile outdated files
@@ -425,7 +457,7 @@ class build_clib(_build_clib):
                 [source],
                 object,
                 self.compiler.compile,
-                ([source], self.build_temp, *compile_args),
+                ([source], None, *compile_args),
             )
 
         # link into a static library
@@ -472,10 +504,13 @@ setuptools.setup(
                 for x in glob.glob(os.path.join("vendor", "muscle", "src", "*.cpp"))
                 if os.path.basename(x) not in {"main.cpp", "make_a2m.cpp"}
             ],
+            depends=[
+                x
+                for x in glob.glob(os.path.join("vendor", "muscle", "src", "*.h"))
+            ],
             include_dirs=[
                 "pymuscle",
                 "include",
-                os.path.join("vendor", "muscle", "src")
             ],
         ),
     ],
@@ -494,7 +529,6 @@ setuptools.setup(
             include_dirs=[
                 "pymuscle",
                 "include",
-                os.path.join("vendor", "muscle", "src"),
             ],
             libraries=[
                 "muscle",
