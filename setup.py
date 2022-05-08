@@ -16,8 +16,6 @@ from setuptools.command.build_clib import build_clib as _build_clib
 from setuptools.command.sdist import sdist as _sdist
 from setuptools.extension import Library
 
-import rich.progress
-
 try:
     from Cython.Build import cythonize
 except ImportError as err:
