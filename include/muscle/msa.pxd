@@ -4,6 +4,7 @@ from libcpp.string cimport string
 from libcpp.vector cimport vector
 
 from muscle.sequence cimport Sequence
+from muscle.alpha cimport ALPHA
 
 
 cdef extern from "msa.h":
@@ -40,6 +41,9 @@ cdef extern from "msa.h":
         void GetSeqLabel(unsigned int SeqIndex, string& Label) const
 
         void Copy(const MSA &msa)
+
+        ALPHA GuessAlpha() const
+        void FixAlpha()
 
         void LogMe() const
         void Clear()
