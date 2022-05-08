@@ -6,7 +6,7 @@ from muscle.tree cimport Tree
 from muscle.multisequence cimport MultiSequence
 
 
-cdef extern from "pprog.h":
+cdef extern from "pprog.h" nogil:
 
     cdef cppclass PProg:
         unsigned int m_InputMSACount

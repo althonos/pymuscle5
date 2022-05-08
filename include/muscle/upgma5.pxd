@@ -5,7 +5,7 @@ from libcpp.map cimport map
 from muscle cimport LINKAGE
 from muscle.tree cimport Tree
 
-cdef extern from "upgma5.h":
+cdef extern from "upgma5.h" nogil:
 
     cdef cppclass UPGMA5:
         unsigned int m_LeafCount

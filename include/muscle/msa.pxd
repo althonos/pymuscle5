@@ -7,7 +7,7 @@ from muscle.sequence cimport Sequence
 from muscle.alpha cimport ALPHA
 
 
-cdef extern from "msa.h":
+cdef extern from "msa.h" nogil:
 
     cdef cppclass MSA:
         unsigned m_uSeqCount

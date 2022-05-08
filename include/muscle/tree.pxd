@@ -2,7 +2,7 @@ from libcpp.string cimport string
 from libcpp.vector cimport vector
 
 
-cdef extern from "tree.h":
+cdef extern from "tree.h" nogil:
 
     cdef enum NEWICK_TOKEN_TYPE:
         NTT_Unknown

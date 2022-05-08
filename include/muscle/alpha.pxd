@@ -3,13 +3,12 @@ from libcpp cimport bool
 from muscle cimport byte
 
 
-cdef extern from "alpha.h":
+cdef extern from "alpha.h" nogil:
 
     cdef enum ALPHA:
         ALPHA_Undefined
         ALPHA_Nucleo
         ALPHA_Amino
-
 
     cdef bool StrHasAmino(const char* Str)
     cdef bool StrHasGap(const char* Str)

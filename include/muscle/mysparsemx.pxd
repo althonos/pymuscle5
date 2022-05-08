@@ -4,7 +4,7 @@ from muscle cimport byte
 from muscle.pairhmm cimport DEFAULT_CONSISTENCY_ITERS
 
 
-cdef extern from "mysparsemx.h":
+cdef extern from "mysparsemx.h" nogil:
 
     cdef cppclass MySparseMx:
         unsigned int m_LX

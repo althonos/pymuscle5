@@ -3,7 +3,7 @@ from libcpp.vector cimport vector
 from libcpp.string cimport string
 
 
-cdef extern from "hmmparams.h":
+cdef extern from "hmmparams.h" nogil:
 
     cdef cppclass HMMParams:
         bool m_Logs
@@ -41,5 +41,3 @@ cdef extern from "hmmparams.h":
 
         void GetProbs(HMMParams& Probs) const
         void GetScore(HMMParams& Scores) const
-
-        

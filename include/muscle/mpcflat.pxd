@@ -12,7 +12,7 @@ from muscle.treeperm cimport TREEPERM
 from muscle.upgma5 cimport UPGMA5
 
 
-cdef extern from "mpcflat.h":
+cdef extern from "mpcflat.h" nogil:
 
     cdef cppclass MPCFlat:
         MultiSequence* m_InputSeqs
