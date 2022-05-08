@@ -1,0 +1,13 @@
+include COPYING
+include CHANGELOG.md
+include CONTRIBUTING.md
+include README.md
+
+recursive-include pymuscle/tests      *.py *.txt
+recursive-include pymuscle/tests/data *
+
+recursive-include vendor/muscle       *.c *.cpp *.h *.md VERSION LICENSE CHANGES Makefile
+
+recursive-include pymuscle            *.py *.pyi *.pyx *.pxd *.h py.typed
+recursive-exclude pymuscle            *.c *.html
+recursive-include pymuscle/impl       *.c *.h *.pxd
