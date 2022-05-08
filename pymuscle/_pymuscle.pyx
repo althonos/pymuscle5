@@ -1,15 +1,21 @@
 # distutils: language = c++
 # cython: language_level=3, linetrace=True
 
+from libc.float cimport FLT_MAX
 from libc.stdlib cimport malloc, free
 from libc.stdio cimport printf, fprintf, FILE, fopen, fclose
 from libc.string cimport memcpy, strlen
 from libcpp.vector cimport vector
 from libcpp.string cimport string
+from libcpp.pair cimport pair
 
 from cpython.buffer cimport PyBUF_READ, PyBUF_FORMAT
 from cpython.memoryview cimport PyMemoryView_FromMemory
 
+cimport muscle
+cimport muscle.pprog
+cimport muscle.treeperm
+from muscle cimport LINKAGE
 from muscle.alpha cimport ALPHA, SetAlpha
 from muscle.hmmparams cimport HMMParams
 from muscle.sequence cimport Sequence as _Sequence
@@ -21,6 +27,10 @@ from muscle.mpcflat cimport MPCFlat
 import os
 import threading
 import warnings
+import multiprocessing.pool
+
+muscle.opt_threads = 1
+muscle.opt_quiet = True
 
 
 cdef class Sequence:
@@ -192,6 +202,8 @@ cdef class Alignment:
         return copy
 
 
+ctypedef unsigned int uint
+
 cdef class Aligner:
 
     cdef MPCFlat _mpcflat
@@ -220,6 +232,89 @@ cdef class Aligner:
         self._mpcflat.m_SparsePosts1.resize(pair_count)
         self._mpcflat.m_SparsePosts2.resize(pair_count)
 
+    cdef _calc_guide_tree(self):
+        # if randomchaintree:
+        #     CalcGuideTree_RandomChain()
+        #     return
+
+        self._mpcflat.m_Upgma5.Init(self._mpcflat.m_Labels, self._mpcflat.m_DistMx)
+        self._mpcflat.m_Upgma5.FixEADistMx()
+
+        self._mpcflat.m_Upgma5.Run(LINKAGE.LINKAGE_Biased, self._mpcflat.m_GuideTree)
+        muscle.treeperm.PermTree(
+            self._mpcflat.m_GuideTree,
+            self._mpcflat.m_TreePerm
+        )
+
+    cdef _calc_join_order(self):
+        muscle.pprog.GetGuideTreeJoinOrder(
+            self._mpcflat.m_GuideTree,
+            self._mpcflat.m_LabelToIndex,
+            self._mpcflat.m_JoinIndexes1,
+            self._mpcflat.m_JoinIndexes2,
+        )
+        muscle.pprog.ValidateJoinOrder(
+            self._mpcflat.m_JoinIndexes1,
+            self._mpcflat.m_JoinIndexes2,
+        )
+
+    cdef _calc_posteriors(self):
+        cdef unsigned int pair_index
+        cdef unsigned int pair_count = self._mpcflat.m_Pairs.size()
+
+        for pair_index in range(pair_count):
+            self._mpcflat.CalcPosterior(pair_index)
+
+    cdef _consistency(self):
+        cdef unsigned int iteration
+        cdef unsigned int seq_count = self._mpcflat.GetSeqCount()
+
+        if seq_count < 3:
+            return
+
+        for iteration in range(self._mpcflat.m_ConsistencyIterCount):
+            self._consiter(iteration)
+
+    cdef _consiter(self, unsigned int iteration):
+        cdef unsigned int pair_index
+        cdef unsigned int pair_count = self._mpcflat.m_Pairs.size()
+
+        if pair_count <= 0:
+            raise ValueError("pair count should be strictly positive")
+
+        for pair_index in range(pair_count):
+            self._mpcflat.ConsPair(pair_index)
+
+        self._mpcflat.m_ptrSparsePosts, self._mpcflat.m_ptrUpdatedSparsePosts = self._mpcflat.m_ptrUpdatedSparsePosts, self._mpcflat.m_ptrSparsePosts
+
+    cdef _init_dist_mx(self):
+        cdef unsigned int i
+        cdef unsigned int seq_count = self._mpcflat.GetSeqCount()
+
+        self._mpcflat.m_DistMx.clear()
+        self._mpcflat.m_DistMx.resize(seq_count)
+
+        for i in range(seq_count):
+            self._mpcflat.m_DistMx[i].resize(seq_count, FLT_MAX)
+            self._mpcflat.m_DistMx[i][i] = 0
+
+    cdef _init_pairs(self):
+        cdef unsigned int                     seq_index1
+        cdef unsigned int                     seq_index2
+        cdef pair[unsigned int, unsigned int] seq_pair
+        cdef unsigned int                     seq_count  = self._mpcflat.GetSeqCount()
+        cdef unsigned int                     pair_index = 0
+
+        self._mpcflat.m_Pairs.clear()
+        self._mpcflat.m_PairToIndex.clear()
+
+        for seq_index1 in range(seq_count):
+            for seq_index2 in range(seq_index1 + 1, seq_count):
+                seq_pair = pair[uint, uint](seq_index1, seq_index2)
+                self._mpcflat.m_Pairs.push_back(seq_pair)
+                self._mpcflat.m_PairToIndex[seq_pair] = pair_index
+                pair_index += 1
+
     cdef _init_seqs(self, MultiSequence sequences):
         cdef unsigned int i
         cdef _Sequence*   seq
@@ -239,6 +334,13 @@ cdef class Aligner:
                 raise KeyError("Duplicate label: {!r}".format(label.decode('utf-8', 'replace')))
             self._mpcflat.m_LabelToIndex[label] = i
 
+    cdef _refine(self):
+        cdef unsigned int iteration
+        cdef unsigned int seq_count = self._mpcflat.GetSeqCount()
+
+        for iteration in range(self._mpcflat.m_RefineIterCount):
+            self._mpcflat.RefineIter()
+
     cpdef object align(
         self,
         MultiSequence sequences,
@@ -255,15 +357,15 @@ cdef class Aligner:
         else:
             self._mpcflat.Clear()
             self._alloc_pair_count(pair_count)
-            self._init_seqs(sequences._mseq)
-            self._mpcflat.InitPairs()
-            self._mpcflat.InitDistMx()
-            self._mpcflat.CalcPosteriors()
-            self._mpcflat.Consistency()
-            self._mpcflat.CalcGuideTree()
-            self._mpcflat.CalcJoinOrder()
+            self._init_seqs(sequences)
+            self._init_pairs()
+            self._init_dist_mx()
+            self._calc_posteriors()
+            self._consistency()
+            self._calc_guide_tree()
+            self._calc_join_order()
             self._mpcflat.ProgressiveAlign()
-            self._mpcflat.Refine()
+            self._refine()
             self._mpcflat.m_MSA.ToMSA(msa._msa)
 
         return msa
