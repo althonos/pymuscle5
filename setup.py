@@ -249,7 +249,7 @@ class build_ext(_build_ext):
             ext.extra_compile_args.append("/std:c11")
         # add Windows flags
         if self.compiler.compiler_type == "msvc":
-            library.define_macros.append(("WIN32", 1))
+            ext.define_macros.append(("WIN32", 1))
         # update link and include directories
         for name in ext.libraries:
             lib = self._clib_cmd.get_library(name)
