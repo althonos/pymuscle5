@@ -13,7 +13,7 @@ class TestAligner(unittest.TestCase):
     def test_halorhodopsin(self):
 
         with importlib_resources.path("pymuscle.tests.data", "swissprot-halorhodopsin.faa") as path:
-            sequences = pymuscle.MultiSequence.from_file(path)
+            sequences = pymuscle.MultiSequence.from_file(str(path))
             self.assertEqual(len(sequences), 11)
 
         aligner = pymuscle.Aligner()
@@ -21,7 +21,7 @@ class TestAligner(unittest.TestCase):
         self.assertEqual(len(msa.sequences), 11)
 
         with importlib_resources.path("pymuscle.tests.data", "swissprot-halorhodopsin.muscle.afa") as path:
-            expected = pymuscle.MultiSequence.from_file(path)
+            expected = pymuscle.MultiSequence.from_file(str(path))
             self.assertEqual(len(expected), 11)
 
         actual_sequences = { seq.name:seq for seq in msa.sequences }
