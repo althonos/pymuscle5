@@ -1,13 +1,18 @@
 import unittest
-import importlib.resources
+
+try:
+    import importlib.resources as importlib_resources
+except ImportError:
+    import importlib_resources
 
 import pymuscle
+
 
 class TestAligner(unittest.TestCase):
 
     def test_halorhodopsin(self):
 
-        with importlib.resources.path("pymuscle.tests.data", "swissprot-halorhodopsin.faa") as path:
+        with importlib_resources.path("pymuscle.tests.data", "swissprot-halorhodopsin.faa") as path:
             sequences = pymuscle.MultiSequence.from_file(path)
             self.assertEqual(len(sequences), 11)
 
@@ -15,7 +20,7 @@ class TestAligner(unittest.TestCase):
         msa = aligner.align(sequences)
         self.assertEqual(len(msa.sequences), 11)
 
-        with importlib.resources.path("pymuscle.tests.data", "swissprot-halorhodopsin.muscle.afa") as path:
+        with importlib_resources.path("pymuscle.tests.data", "swissprot-halorhodopsin.muscle.afa") as path:
             expected = pymuscle.MultiSequence.from_file(path)
             self.assertEqual(len(expected), 11)
 
