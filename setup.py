@@ -23,6 +23,8 @@ except ImportError as err:
 
 # --- Constants -----------------------------------------------------------------
 
+SETUP_FOLDER = os.path.realpath(os.path.join(__file__, os.pardir))
+
 SYSTEM  = platform.system()
 MACHINE = platform.machine()
 if re.match("^mips", MACHINE):
@@ -510,16 +512,17 @@ setuptools.setup(
             language="c++",
             sources=[
                 x
-                for x in glob.glob(os.path.join("vendor", "muscle", "src", "*.cpp"))
+                for x in glob.glob(os.path.join(SETUP_FOLDER, "vendor", "muscle", "src", "*.cpp"))
                 if os.path.basename(x) not in {"main.cpp", "make_a2m.cpp"}
             ],
             depends=[
                 x
-                for x in glob.glob(os.path.join("vendor", "muscle", "src", "*.h"))
+                for x in glob.glob(os.path.join(SETUP_FOLDER, "vendor", "muscle", "src", "*.h"))
             ],
             include_dirs=[
-                "pymuscle",
-                "include",
+                os.path.join(SETUP_FOLDER, "pymuscle"),
+                os.path.join(SETUP_FOLDER, "include"),
+                os.path.join(SETUP_FOLDER, "pymuscle", "patch"),
             ],
         ),
     ],
@@ -528,7 +531,7 @@ setuptools.setup(
             "pymuscle._pymuscle",
             language="c++",
             sources=[
-                "pymuscle/_pymuscle.pyx",
+                os.path.join(SETUP_FOLDER, "pymuscle", "_pymuscle.pyx"),
             ],
             platform_sources={
                 # "AVX2": ["pymuscle/impl/avx.c"],
@@ -536,8 +539,9 @@ setuptools.setup(
                 # "SSE2": ["pymuscle/impl/sse.c"],
             },
             include_dirs=[
-                "pymuscle",
-                "include",
+                os.path.join(SETUP_FOLDER, "pymuscle"),
+                os.path.join(SETUP_FOLDER, "include"),
+                os.path.join(SETUP_FOLDER, "pymuscle", "patch"),
             ],
             libraries=[
                 "muscle",
