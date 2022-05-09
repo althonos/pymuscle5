@@ -165,11 +165,20 @@ cdef class MultiSequence:
     def __cinit__(self):
         self._mseq = NULL
 
+    def __init__(self, object sequences = None):
+        """__init__(self, sequences=None)\n--
+        """
+        cdef Sequence sequence
+
+        if self._mseq is NULL:
+            self._mseq = new _MultiSequence()
+        else:
+            self._mseq.Clear()
+        for sequence in sequences if sequences is None else ():
+            self._mseq.AddSequence(sequence._seq.Clone(), True)
+
     def __dealloc__(self):
         del self._mseq
-
-    def __init__(self):
-        raise NotImplementedError("MultiSequence.__init__")
 
     def __len__(self):
         assert self._mseq != NULL
@@ -281,6 +290,18 @@ cdef class Aligner:
         object consistency_iterations = None,
         object refine_iterations = None,
     ):
+        """__init__(self, *, consistency_iterations=None, refine_iterations=None)\n--
+
+        Create a new aligner.
+
+        Keyword Arguments:
+            consistency_iterations (`int`, optional): The number of
+                consistency iterations to run before the progressive
+                alignment.
+            refine_iterations (`int`, optional): The number of refinement
+                iterations to run after the progressive alignment.
+
+        """
         self._mpcflat.Clear()
 
         if consistency_iterations is not None:
@@ -410,21 +431,51 @@ cdef class Aligner:
 
     cpdef object align(
         self,
-        MultiSequence sequences,
+        object sequences,
     ):
-        cdef Alignment    msa        = Alignment.__new__(Alignment)
-        cdef unsigned int seq_count  = sequences._mseq.GetSeqCount()
-        cdef unsigned int pair_count = seq_count*(seq_count - 1) / 2
+        """align(self, sequences)\n--
+
+        Align several sequences with the MUSCLE algorithm.
+
+        Arguments:
+            sequences (iterable of `~pymuscle.Sequence`): The protein
+                sequences to align.
+
+        Returns:
+            `~pymuscle.Alignment`: The protein sequences in aligned format.
+
+        """
+        cdef list          seqlist
+        cdef MultiSequence mseqs
+        cdef Sequence      sequence
+        cdef unsigned int  seq_count
+        cdef unsigned int  pair_count
+        cdef Alignment     msa        = Alignment.__new__(Alignment)
+
+        if isinstance(sequences, MultiSequence):
+            mseqs = sequences
+        else:
+            try:
+                seqlist = list(sequences)
+                mseqs = MultiSequence.__new__(MultiSequence)
+                mseqs._mseq = new _MultiSequence()
+                for sequence in sequences:
+                    mseqs._mseq.AddSequence(sequence._seq, False)
+            except TypeError as err:
+                raise TypeError("Expected iterable of `pymuscle.Sequence`") from err
+
+        seq_count = mseqs._mseq.GetSeqCount()
+        pair_count = seq_count*(seq_count - 1) / 2
 
         if seq_count == 0:
             msa._msa.Clear()
         elif seq_count == 1:
-            msa._msa.FromSequence(sequences._mseq.m_Seqs[0][0])
+            msa._msa.FromSequence(mseqs._mseq.m_Seqs[0][0])
         else:
             with multiprocessing.pool.ThreadPool() as pool:
                 self._mpcflat.Clear()
                 self._alloc_pair_count(pair_count)
-                self._init_seqs(sequences)
+                self._init_seqs(mseqs)
                 self._init_pairs()
                 self._init_dist_mx()
                 self._calc_posteriors(pool)
