@@ -2,7 +2,7 @@
 # cython: language_level=3, linetrace=True
 
 from libc.float cimport FLT_MAX
-from libc.stdlib cimport malloc, free
+from libc.stdlib cimport malloc, free, srand
 from libc.stdio cimport printf, fprintf, FILE, fopen, fclose
 from libc.string cimport memcpy, strlen
 from libcpp.vector cimport vector
@@ -25,6 +25,7 @@ from muscle.msa cimport MSA as _MSA
 from muscle.multisequence cimport MultiSequence as _MultiSequence
 from muscle.treeperm cimport TREEPERM, TREEPERMToStr
 from muscle.mpcflat cimport MPCFlat
+from muscle.myutils cimport ResetRand
 
 import os
 import threading
@@ -424,6 +425,8 @@ cdef class Aligner:
         cdef unsigned int iteration
         cdef unsigned int seq_count = self._mpcflat.GetSeqCount()
 
+        if seq_count < 3:
+            return
         for iteration in range(self._mpcflat.m_RefineIterCount):
             self._mpcflat.RefineIter()
 
@@ -451,6 +454,9 @@ cdef class Aligner:
         cdef unsigned int  seq_count
         cdef unsigned int  pair_count
         cdef Alignment     msa        = Alignment.__new__(Alignment)
+
+        srand(0)
+        ResetRand(0)
 
         if isinstance(sequences, MultiSequence):
             mseqs = sequences
