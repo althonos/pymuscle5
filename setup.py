@@ -247,6 +247,9 @@ class build_ext(_build_ext):
             ext.extra_compile_args.append("-std=c++11")
         elif self.compiler.compiler_type == "msvc":
             ext.extra_compile_args.append("/std:c11")
+        # add Windows flags
+        if self.compiler.compiler_type == "msvc":
+            library.define_macros.append(("WIN32", 1))
         # update link and include directories
         for name in ext.libraries:
             lib = self._clib_cmd.get_library(name)
@@ -424,6 +427,10 @@ class build_clib(_build_clib):
             library.extra_compile_args.append("-std=c++11")
         elif self.compiler.compiler_type == "msvc":
             library.extra_compile_args.append("/std:c11")
+
+        # add Windows flags
+        if self.compiler.compiler_type == "msvc":
+            library.define_macros.append(("WIN32", 1))
 
         # expose all private members and copy headers to build directory
         for header in library.depends:
