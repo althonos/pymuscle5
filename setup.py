@@ -240,6 +240,11 @@ class build_ext(_build_ext):
                 ext.define_macros.append(("CYTHON_TRACE_NOGIL", 1))
         else:
             ext.define_macros.append(("CYTHON_WITHOUT_ASSERTIONS", 1))
+        # add C++11 flags
+        if self.compiler.compiler_type in {"unix", "cygwin", "mingw32"}:
+            ext.extra_compile_args.append("-std=c++11")
+        elif self.compiler.compiler_type == "msvc":
+            ext.extra_compile_args.append("/std:c11")
         # update link and include directories
         for name in ext.libraries:
             lib = self._clib_cmd.get_library(name)
@@ -411,6 +416,12 @@ class build_clib(_build_clib):
                 library.extra_compile_args.append("-g")
             elif self.compiler.compiler_type == "msvc":
                 library.extra_compile_args.append("/Z7")
+
+        # add C++11 flags
+        if self.compiler.compiler_type in {"unix", "cygwin", "mingw32"}:
+            library.extra_compile_args.append("-std=c++11")
+        elif self.compiler.compiler_type == "msvc":
+            library.extra_compile_args.append("/std:c11")
 
         # expose all private members and copy headers to build directory
         for header in library.depends:
