@@ -1,4 +1,4 @@
-# pyMUSCLE5 [![Stars](https://img.shields.io/github/stars/althonos/pymuscle.svg?style=social&maxAge=3600&label=Star)](https://github.com/althonos/pymuscle/stargazers)
+# pyMUSCLE5 [![Stars](https://img.shields.io/github/stars/althonos/pymuscle5.svg?style=social&maxAge=3600&label=Star)](https://github.com/althonos/pymuscle5/stargazers)
 
 *Cython bindings and Python interface to [MUSCLE v5](https://www.drive5.com/muscle/), a highly efficient and accurate multiple sequence alignment software.*
 
@@ -36,7 +36,7 @@ internals, which has the following advantages:
   sub-process and temporary files. Sequences can be passed directly as
   strings or bytes, which avoids the overhead of formatting your input to
   FASTA for MUSCLE.
-- **no OpenMP-dependency**: The original MUSCLE code uses [OpenMP](https://www.openmp.org/)
+- **no OpenMP**: The original MUSCLE code uses [OpenMP](https://www.openmp.org/)
   to parallelize embarassingly-parallel tasks. In pyMUSCLE5 the dependency on
   OpenMP has been removed in favor of the Python `threading` module for better
   portability.
@@ -52,17 +52,17 @@ align proteins together, and print the alignment in two-line FASTA format.
 import os
 
 import Bio.SeqIO
-import pymuscle
+import pymuscle5
 
 path = os.path.join("pymuscle", "tests", "data", "swissprot-halorhodopsin.faa")
 records = list(Bio.SeqIO.parse(path, "fasta"))
 
 sequences = [
-    pymuscle.Sequence(record.id.encode(), bytes(record.seq))
+    pymuscle5.Sequence(record.id.encode(), bytes(record.seq))
     for record in records
 ]
 
-aligner = pymuscle.Aligner()
+aligner = pymuscle5.Aligner()
 msa = aligner.align(sequences)
 
 for seq in msa.sequences:
@@ -76,17 +76,17 @@ for seq in msa.sequences:
 import os
 
 import skbio.io
-import pymuscle
+import pymuscle5
 
 path = os.path.join("pymuscle", "tests", "data", "swissprot-halorhodopsin.faa")
 records = list(skbio.io.read(path, "fasta"))
 
 sequences = [
-    pymuscle.Sequence(record.metadata["id"].encode(), record.values.view('B'))
+    pymuscle5.Sequence(record.metadata["id"].encode(), record.values.view('B'))
     for record in records
 ]
 
-aligner = pymuscle.Aligner()
+aligner = pymuscle5.Aligner()
 msa = aligner.align(sequences)
 
 for seq in msa.sequences:
@@ -103,7 +103,7 @@ method to get the sequence viewable by Cython as an array of `unsigned char`.*
 ### ⚠️ Issue Tracker
 
 Found a bug ? Have an enhancement request ? Head over to the [GitHub issue
-tracker](https://github.com/althonos/pymuscle/issues) if you need to report
+tracker](https://github.com/althonos/pymuscle5/issues) if you need to report
 or ask something. If you are filing in on a bug, please include as much
 information as you can about the issue, and try to recreate the same bug
 in a simple, easily reproducible situation.
@@ -111,13 +111,13 @@ in a simple, easily reproducible situation.
 ### 🏗️ Contributing
 
 Contributions are more than welcome! See
-[`CONTRIBUTING.md`](https://github.com/althonos/pymuscle/blob/main/CONTRIBUTING.md)
+[`CONTRIBUTING.md`](https://github.com/althonos/pymuscle5/blob/main/CONTRIBUTING.md)
 for more details.
 
 ## 📋 Changelog
 
 This project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html)
-and provides a [changelog](https://github.com/althonos/pymuscle/blob/main/CHANGELOG.md)
+and provides a [changelog](https://github.com/althonos/pymuscle5/blob/main/CHANGELOG.md)
 in the [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) format.
 
 

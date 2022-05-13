@@ -497,7 +497,7 @@ class clean(_clean):
 
     def run(self):
 
-        source_dir = os.path.join(os.path.dirname(__file__), "pymuscle")
+        source_dir = os.path.join(os.path.dirname(__file__), "pymuscle5")
 
         patterns = ["*.html"]
         if self.all:
@@ -527,28 +527,28 @@ setuptools.setup(
                 for x in glob.glob(os.path.join(SETUP_FOLDER, "vendor", "muscle", "src", "*.h"))
             ],
             include_dirs=[
-                os.path.join(SETUP_FOLDER, "pymuscle"),
+                os.path.join(SETUP_FOLDER, "pymuscle5"),
                 os.path.join(SETUP_FOLDER, "include"),
-                os.path.join(SETUP_FOLDER, "pymuscle", "patch"),
+                os.path.join(SETUP_FOLDER, "pymuscle5", "patch"),
             ],
         ),
     ],
     ext_modules=[
         Extension(
-            "pymuscle._pymuscle",
+            "pymuscle5._pymuscle",
             language="c++",
             sources=[
-                os.path.join(SETUP_FOLDER, "pymuscle", "_pymuscle.pyx"),
+                os.path.join(SETUP_FOLDER, "pymuscle5", "_pymuscle.pyx"),
             ],
             platform_sources={
-                # "AVX2": ["pymuscle/impl/avx.c"],
-                # "NEON": ["pymuscle/impl/neon.c"],
-                # "SSE2": ["pymuscle/impl/sse.c"],
+                # "AVX2": ["pymuscle5/impl/avx.c"],
+                # "NEON": ["pymuscle5/impl/neon.c"],
+                # "SSE2": ["pymuscle5/impl/sse.c"],
             },
             include_dirs=[
-                os.path.join(SETUP_FOLDER, "pymuscle"),
+                os.path.join(SETUP_FOLDER, "pymuscle5"),
                 os.path.join(SETUP_FOLDER, "include"),
-                os.path.join(SETUP_FOLDER, "pymuscle", "patch"),
+                os.path.join(SETUP_FOLDER, "pymuscle5", "patch"),
             ],
             libraries=[
                 "muscle",

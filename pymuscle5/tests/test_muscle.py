@@ -5,23 +5,24 @@ try:
 except ImportError:
     import importlib_resources
 
-import pymuscle
+from .. import Aligner, MultiSequence
+from .data import __name__ as data_package
 
 
 class TestAligner(unittest.TestCase):
 
     def test_luxc(self):
 
-        with importlib_resources.path("pymuscle.tests.data", "LuxC.faa") as path:
-            sequences = pymuscle.MultiSequence.from_file(str(path))
+        with importlib_resources.path(data_package, "LuxC.faa") as path:
+            sequences = MultiSequence.from_file(str(path))
             self.assertEqual(len(sequences), 13)
 
-        aligner = pymuscle.Aligner()
+        aligner = Aligner()
         msa = aligner.align(sequences)
         self.assertEqual(len(msa.sequences), 13)
 
-        with importlib_resources.path("pymuscle.tests.data", "LuxC.muscle.afa") as path:
-            expected = pymuscle.MultiSequence.from_file(str(path))
+        with importlib_resources.path(data_package, "LuxC.muscle.afa") as path:
+            expected = MultiSequence.from_file(str(path))
             self.assertEqual(len(expected), 13)
 
         actual_sequences = { seq.name:seq for seq in msa.sequences }
@@ -36,16 +37,16 @@ class TestAligner(unittest.TestCase):
 
     def test_halorhodopsin(self):
 
-        with importlib_resources.path("pymuscle.tests.data", "swissprot-halorhodopsin.faa") as path:
-            sequences = pymuscle.MultiSequence.from_file(str(path))
+        with importlib_resources.path(data_package, "swissprot-halorhodopsin.faa") as path:
+            sequences = MultiSequence.from_file(str(path))
             self.assertEqual(len(sequences), 11)
 
-        aligner = pymuscle.Aligner()
+        aligner = Aligner()
         msa = aligner.align(sequences)
         self.assertEqual(len(msa.sequences), 11)
 
-        with importlib_resources.path("pymuscle.tests.data", "swissprot-halorhodopsin.muscle.afa") as path:
-            expected = pymuscle.MultiSequence.from_file(str(path))
+        with importlib_resources.path(data_package, "swissprot-halorhodopsin.muscle.afa") as path:
+            expected = MultiSequence.from_file(str(path))
             self.assertEqual(len(expected), 11)
 
         actual_sequences = { seq.name:seq for seq in msa.sequences }

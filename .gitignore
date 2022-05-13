@@ -1,5 +1,6 @@
 # Added manually
-pymuscle/_pymuscle.cpp
+pymuscle5/_pymuscle.cpp
+pymuscle5/_pymuscle.html
 
 # Created by https://www.toptal.com/developers/gitignore/api/python,c
 # Edit at https://www.toptal.com/developers/gitignore?templates=python,c
