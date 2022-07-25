@@ -5,6 +5,7 @@ import platform
 import re
 import subprocess
 import sys
+import multiprocessing.pool
 
 import setuptools
 from distutils import log
@@ -76,6 +77,7 @@ class build_ext(_build_ext):
         self._clib_cmd.define = self.define
         self._clib_cmd.include_dirs = self.include_dirs
         self._clib_cmd.compiler = self.compiler
+        self._clib_cmd.parallel = self.parallel
 
     # --- Build code ---
 
@@ -263,12 +265,15 @@ class build_clib(_build_clib):
             for s in sources
         ]
         # only compile outdated files
-        for source, object in zip(sources, objects):
-            self.make_file(
-                [source],
-                object,
-                self.compiler.compile,
-                ([source], None, *compile_args),
+        with multiprocessing.pool.ThreadPool(self.parallel) as pool:
+            pool.map(
+                lambda args: self.make_file(
+                    [args[0]],
+                    args[1],
+                    self.compiler.compile,
+                    ([args[0]], None, *compile_args)
+                ),
+                zip(sources, objects)
             )
 
         # link into a static library
@@ -350,4 +355,3 @@ setuptools.setup(
         "clean": clean
     }
 )
-
