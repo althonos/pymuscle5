@@ -1,6 +1,9 @@
 # Added manually
-pymuscle5/_pymuscle.cpp
-pymuscle5/_pymuscle.html
+pymuscle5/_muscle.cpp
+pymuscle5/_muscle.html
+
+callgrind.out.*
+cachegrind.out.*
 
 # Created by https://www.toptal.com/developers/gitignore/api/python,c
 # Edit at https://www.toptal.com/developers/gitignore?templates=python,c

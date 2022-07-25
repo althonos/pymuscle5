@@ -7,14 +7,13 @@ import subprocess
 import sys
 
 import setuptools
-import setuptools.extension
 from distutils import log
 from distutils.errors import CompileError
 from distutils.command.clean import clean as _clean
 from setuptools.command.build_ext import build_ext as _build_ext
 from setuptools.command.build_clib import build_clib as _build_clib
 from setuptools.command.sdist import sdist as _sdist
-from setuptools.extension import Library
+from setuptools.extension import Library, Extension
 
 try:
     from Cython.Build import cythonize
@@ -45,16 +44,6 @@ def _eprint(*args, **kwargs):
 
 # --- Commands ------------------------------------------------------------------
 
-class Extension(setuptools.extension.Extension):
-
-    def __init__(self, *args, **kwargs):
-        self._needs_stub = False
-        self.platform_sources = kwargs.pop("platform_sources", {})
-        super().__init__(*args, **kwargs)
-
-
-# --- Commands ------------------------------------------------------------------
-
 class sdist(_sdist):
     """A `sdist` that generates a `pyproject.toml` on the fly.
     """
@@ -77,29 +66,8 @@ class build_ext(_build_ext):
 
     # --- Compatibility with `setuptools.Command`
 
-    user_options = _build_ext.user_options + [
-        ("disable-avx2", None, "Force compiling the extension without AVX2 instructions"),
-        ("disable-sse2", None, "Force compiling the extension without SSE2 instructions"),
-        ("disable-neon", None, "Force compiling the extension without NEON instructions"),
-    ]
-
-    def initialize_options(self):
-        _build_ext.initialize_options(self)
-        self.disable_avx2 = False
-        self.disable_sse2 = False
-        self.disable_neon = False
-
     def finalize_options(self):
         _build_ext.finalize_options(self)
-        # record SIMD-specific options
-        self._simd_supported = dict(AVX2=False, SSE2=False, NEON=False)
-        self._simd_defines = dict(AVX2=[], SSE2=[], NEON=[])
-        self._simd_flags = dict(AVX2=[], SSE2=[], NEON=[])
-        self._simd_disabled = {
-            "AVX2": self.disable_avx2,
-            "SSE2": self.disable_sse2,
-            "NEON": self.disable_neon,
-        }
         # transfer arguments to the build_clib method
         self._clib_cmd = self.get_finalized_command("build_clib")
         self._clib_cmd.debug = self.debug
@@ -109,125 +77,7 @@ class build_ext(_build_ext):
         self._clib_cmd.include_dirs = self.include_dirs
         self._clib_cmd.compiler = self.compiler
 
-    # --- Autotools-like helpers ---
-
-    def _check_simd_generic(self, name, flags, header, vector, set, op, extract):
-        _eprint('checking whether compiler can build', name, 'code', end="... ")
-
-        base = "have_{}".format(name)
-        testfile = os.path.join(self.build_temp, "{}.c".format(base))
-        binfile = self.compiler.executable_filename(base, output_dir=self.build_temp)
-        objects = []
-
-        self.mkpath(self.build_temp)
-        with open(testfile, "w") as f:
-            f.write("""
-                #include <{}>
-                int main() {{
-                    {}      a = {}(1);
-                            a = {}(a);
-                    short   x = {}(a, 1);
-                    return (x == 1) ? 0 : 1;
-                }}
-            """.format(header, vector, set, op, extract))
-
-        try:
-            self.mkpath(self.build_temp)
-            objects = self.compiler.compile([testfile], extra_preargs=flags)
-            self.compiler.link_executable(objects, base, output_dir=self.build_temp)
-            subprocess.run([binfile], check=True)
-        except CompileError:
-            _eprint("no")
-            return False
-        except subprocess.CalledProcessError:
-            _eprint("yes, but cannot run code")
-            return True  # assume we are cross-compiling, and still build
-        else:
-            if not flags:
-                _eprint("yes")
-            else:
-                _eprint("yes, with {}".format(" ".join(flags)))
-            return True
-        finally:
-            os.remove(testfile)
-            for obj in filter(os.path.isfile, objects):
-                os.remove(obj)
-            if os.path.isfile(binfile):
-                os.remove(binfile)
-
-    def _avx2_flags(self):
-        if self.compiler.compiler_type == "msvc":
-            return ["/arch:AVX2"]
-        return ["-mavx", "-mavx2"]
-
-    def _check_avx2(self):
-        return self._check_simd_generic(
-            "AVX2",
-            self._avx2_flags(),
-            header="immintrin.h",
-            vector="__m256i",
-            set="_mm256_set1_epi16",
-            op="_mm256_abs_epi32",
-            extract="_mm256_extract_epi16",
-        )
-
-    def _sse2_flags(self):
-        if self.compiler.compiler_type == "msvc":
-            return ["/arch:SSE2"]
-        return ["-msse", "-msse2"]
-
-    def _check_sse2(self):
-        return self._check_simd_generic(
-            "SSE2",
-            self._sse2_flags(),
-            header="emmintrin.h",
-            vector="__m128i",
-            set="_mm_set1_epi16",
-            op="_mm_move_epi64",
-            extract="_mm_extract_epi16",
-        )
-
-    def _neon_flags(self):
-        return ["-mfpu=neon"] if TARGET_CPU == "arm" else []
-
-    def _check_neon(self):
-        return self._check_simd_generic(
-            "NEON",
-            self._neon_flags(),
-            header="arm_neon.h",
-            vector="int16x8_t",
-            set="vdupq_n_s16",
-            op="vabsq_s16",
-            extract="vgetq_lane_s16"
-        )
-
     # --- Build code ---
-
-    def build_simd_code(self, ext):
-        # build platform-specific code
-        for simd, sources in ext.platform_sources.items():
-            if self._simd_supported[simd] and not self._simd_disabled[simd]:
-                objects = [
-                    os.path.join(self.build_temp, s.replace(".c", self.compiler.obj_extension))
-                    for s in sources
-                ]
-                for source, object in zip(sources, objects):
-                    self.make_file(
-                        [source],
-                        object,
-                        self.compiler.compile,
-                        (
-                            [source],
-                            self.build_temp,
-                            ext.define_macros + self._simd_defines[simd],
-                            ext.include_dirs,
-                            self.debug,
-                            ext.extra_compile_args + self._simd_flags[simd],
-                            None,
-                            ext.depends
-                        )
-                    )
-                ext.extra_objects.extend(objects)
 
     def build_extension(self, ext):
         # show the compiler being used
@@ -258,8 +108,6 @@ class build_ext(_build_ext):
             )
             ext.depends.append(libfile)
             ext.extra_objects.append(libfile)
-        # build platform-specific code
-        self.build_simd_code(ext)
         # build the rest of the extension as normal
         _build_ext.build_extension(self, ext)
 
@@ -306,34 +154,16 @@ class build_ext(_build_ext):
         if not self.distribution.have_run.get("build_clib", False):
             self._clib_cmd.run()
 
-        # check if we can build platform-specific code
-        # if TARGET_CPU == "x86":
-        #     if not self._simd_disabled["AVX2"] and self._check_avx2():
-        #         cython_args["compile_time_env"]["AVX2_BUILD_SUPPORT"] = True
-        #         self._simd_supported["AVX2"] = True
-        #         self._simd_flags["AVX2"].extend(self._avx2_flags())
-        #         self._simd_defines["AVX2"].append(("__AVX2__", 1))
-        #     if not self._simd_disabled["SSE2"] and self._check_sse2():
-        #         cython_args["compile_time_env"]["SSE2_BUILD_SUPPORT"] = True
-        #         self._simd_supported["SSE2"] = True
-        #         self._simd_flags["SSE2"].extend(self._sse2_flags())
-        #         self._simd_defines["SSE2"].append(("__SSE2__", 1))
-        # elif TARGET_CPU == "arm" or TARGET_CPU == "aarch64":
-        #     if not self._simd_disabled["NEON"] and self._check_neon():
-        #         cython_args["compile_time_env"]["NEON_BUILD_SUPPORT"] = True
-        #         self._simd_supported["NEON"] = True
-        #         self._simd_flags["NEON"].extend(self._neon_flags())
-        #         self._simd_defines["NEON"].append(("__ARM_NEON__", 1))
-
         # add the include dirs
         for ext in self.extensions:
             ext.include_dirs.append(self._clib_cmd.build_clib)
 
         # cythonize the extensions (retaining platform-specific sources)
-        platform_sources = [ext.platform_sources for ext in self.extensions]
         self.extensions = cythonize(self.extensions, **cython_args)
-        for ext, plat_src in zip(self.extensions, platform_sources):
-            ext.platform_sources = plat_src
+
+        # fix extensions
+        for ext in self.extensions:
+            ext._needs_stub = False
 
         # build the extensions as normal
         _build_ext.build_extensions(self)
@@ -344,38 +174,6 @@ class build_clib(_build_clib):
     """
 
     # --- Autotools-like helpers ---
-
-    def _check_function(self, funcname, header, args="()"):
-        _eprint('checking whether function', repr(funcname), 'is available', end="... ")
-
-        base = "have_{}".format(funcname)
-        testfile = os.path.join(self.build_temp, "{}.c".format(base))
-        binfile = self.compiler.executable_filename(base, output_dir=self.build_temp)
-        objects = []
-
-        with open(testfile, "w") as f:
-            f.write("""
-                #include <{}>
-                int main() {{
-                    {}{};
-                    return 0;
-                }}
-            """.format(header, funcname, args))
-        try:
-            objects = self.compiler.compile([testfile], debug=self.debug)
-            self.compiler.link_executable(objects, base, output_dir=self.build_temp)
-        except CompileError:
-            _eprint("no")
-            return False
-        else:
-            _eprint("yes")
-            return True
-        finally:
-            os.remove(testfile)
-            for obj in filter(os.path.isfile, objects):
-                os.remove(obj)
-            if os.path.isfile(binfile):
-                os.remove(binfile)
 
     def _publicize(self, input, output):
         with open(input, "rb") as src:
@@ -400,11 +198,6 @@ class build_clib(_build_clib):
     # --- Build code ---
 
     def build_libraries(self, libraries):
-        # check for functions required for libcpu_features on OSX
-        # if SYSTEM == "Darwin":
-        #     if self._check_function("sysctlbyname", "sys/sysctl.h", args="(NULL, NULL, 0, NULL, 0)"):
-        #         self.compiler.define_macro("HAVE_SYSCTLBYNAME", 1)
-
         # build each library only if the sources are outdated
         self.mkpath(self.build_clib)
         for library in libraries:
@@ -535,16 +328,11 @@ setuptools.setup(
     ],
     ext_modules=[
         Extension(
-            "pymuscle5._pymuscle",
+            "pymuscle5._muscle",
             language="c++",
             sources=[
-                os.path.join(SETUP_FOLDER, "pymuscle5", "_pymuscle.pyx"),
+                os.path.join(SETUP_FOLDER, "pymuscle5", "_muscle.pyx"),
             ],
-            platform_sources={
-                # "AVX2": ["pymuscle5/impl/avx.c"],
-                # "NEON": ["pymuscle5/impl/neon.c"],
-                # "SSE2": ["pymuscle5/impl/sse.c"],
-            },
             include_dirs=[
                 os.path.join(SETUP_FOLDER, "pymuscle5"),
                 os.path.join(SETUP_FOLDER, "include"),
@@ -562,3 +350,4 @@ setuptools.setup(
         "clean": clean
     }
 )
+

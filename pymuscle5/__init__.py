@@ -1,7 +1,7 @@
 from ._version import __version__
 
-from . import _pymuscle
-from ._pymuscle import (
+from . import _muscle
+from ._muscle import (
     Sequence,
     MultiSequence,
     Alignment,
@@ -9,7 +9,7 @@ from ._pymuscle import (
     Aligner,
 )
 
-__doc__ = _pymuscle.__doc__
+__doc__ = _muscle.__doc__
 __all__ = [
     "Sequence",
     "MultiSequence",
@@ -28,7 +28,7 @@ if __doc__ is not None:
     __doc__ += """See Also:
     An online rendered version of the documentation for this version
     of the library on
-    `Read The Docs <https://pymuscle.readthedocs.io/en/v{}/>`_.
+    `Read The Docs <https://pymuscle5.readthedocs.io/en/v{}/>`_.
 
     """.format(
         __version__
