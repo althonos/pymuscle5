@@ -3,7 +3,7 @@
 *Cython bindings and Python interface to [MUSCLE v5](https://www.drive5.com/muscle/), a highly efficient and accurate multiple sequence alignment software.*
 
 [![Actions](https://img.shields.io/github/workflow/status/althonos/pymuscle5/Test/main?logo=github&style=flat-square&maxAge=300)](https://github.com/althonos/pymuscle5/actions)
-[![Coverage](https://img.shields.io/codecov/c/gh/althonos/pymuscle5?style=flat-square&maxAge=3600&logo=codecov)](https://codecov.io/gh/althonos/pymuscle5/)
+<!-- [![Coverage](https://img.shields.io/codecov/c/gh/althonos/pymuscle5?style=flat-square&maxAge=3600&logo=codecov)](https://codecov.io/gh/althonos/pymuscle5/)
 [![License](https://img.shields.io/badge/license-GPLv3-blue.svg?style=flat-square&maxAge=2678400)](https://choosealicense.com/licenses/gpl-3.0/)
 [![PyPI](https://img.shields.io/pypi/v/pymuscle5.svg?style=flat-square&maxAge=3600&logo=PyPI)](https://pypi.org/project/pymuscle5)
 [![Bioconda](https://img.shields.io/conda/vn/bioconda/pymuscle5?style=flat-square&maxAge=3600&logo=anaconda)](https://anaconda.org/bioconda/pymuscle5)
@@ -15,7 +15,7 @@
 [![GitHub issues](https://img.shields.io/github/issues/althonos/pymuscle5.svg?style=flat-square&maxAge=600)](https://github.com/althonos/pymuscle5/issues)
 [![Docs](https://img.shields.io/readthedocs/pymuscle5/latest?style=flat-square&maxAge=600)](https://pymuscle5.readthedocs.io)
 [![Changelog](https://img.shields.io/badge/keep%20a-changelog-8A0707.svg?maxAge=2678400&style=flat-square)](https://github.com/althonos/pymuscle5/blob/main/CHANGELOG.md)
-[![Downloads](https://img.shields.io/badge/dynamic/json?style=flat-square&color=303f9f&maxAge=86400&label=downloads&query=%24.total_downloads&url=https%3A%2F%2Fapi.pepy.tech%2Fapi%2Fprojects%2Fpymuscle5)](https://pepy.tech/project/pymuscle5)
+[![Downloads](https://img.shields.io/badge/dynamic/json?style=flat-square&color=303f9f&maxAge=86400&label=downloads&query=%24.total_downloads&url=https%3A%2F%2Fapi.pepy.tech%2Fapi%2Fprojects%2Fpymuscle5)](https://pepy.tech/project/pymuscle5) -->
 
 ## 🗺️ Overview
 
@@ -40,6 +40,18 @@ internals, which has the following advantages:
   to parallelize embarassingly-parallel tasks. In pyMUSCLE5 the dependency on
   OpenMP has been removed in favor of the Python `threading` module for better
   portability.
+
+*This library is in a very experimental stage at the moment, and consistency
+of the results across versions or platforms is not guaranteed yet.*
+
+## 🔧 Installing
+
+At the moment pyMUSCLE5 is not available on PyPI. You can however install it
+directly from GitHub with:
+
+```console
+$ pip install git+https://github.com/althonos/pymuscle5
+```
 
 ## 💡 Example
 
