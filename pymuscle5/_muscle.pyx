@@ -278,7 +278,8 @@ cdef class Alignment:
 
 cdef class Aligner:
 
-    cdef MPCFlat _mpcflat
+    cdef          MPCFlat _mpcflat
+    cdef readonly int     threads
 
     # --- Magic methods ------------------------------------------------------
 
@@ -290,8 +291,9 @@ cdef class Aligner:
         *,
         object consistency_iterations = None,
         object refine_iterations = None,
+        int threads = 0,
     ):
-        """__init__(self, *, consistency_iterations=None, refine_iterations=None)\n--
+        """__init__(self, *, consistency_iterations=None, refine_iterations=None, threads=0)\n--
 
         Create a new aligner.
 
@@ -301,8 +303,14 @@ cdef class Aligner:
                 alignment.
             refine_iterations (`int`, optional): The number of refinement
                 iterations to run after the progressive alignment.
+            threads (`int`): The number of threads to use for parallel
+                computation of posteriors. If *0* given, use as many
+                threads as there are CPUs on the machine.
 
         """
+        if threads < 0:
+            raise ValueError("`threads` must be positive or null")
+
         self._mpcflat.Clear()
 
         if consistency_iterations is not None:
@@ -311,6 +319,7 @@ cdef class Aligner:
             self._mpcflat.m_RefineIterCount = int(refine_iterations)
 
         self._mpcflat.m_TreePerm = TREEPERM.TP_None
+        self.threads = threads
 
     # --- C interface --------------------------------------------------------
 
@@ -478,7 +487,7 @@ cdef class Aligner:
         elif seq_count == 1:
             msa._msa.FromSequence(mseqs._mseq.m_Seqs[0][0])
         else:
-            with multiprocessing.pool.ThreadPool() as pool:
+            with multiprocessing.pool.ThreadPool(self.threads or None) as pool:
                 self._mpcflat.Clear()
                 self._alloc_pair_count(pair_count)
                 self._init_seqs(mseqs)
