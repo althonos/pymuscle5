@@ -23,7 +23,7 @@ except ImportError as err:
 
 # --- Constants -----------------------------------------------------------------
 
-SETUP_FOLDER = os.path.realpath(os.path.join(__file__, os.pardir))
+SETUP_FOLDER = os.path.relpath(os.path.realpath(os.path.join(__file__, os.pardir)))
 
 SYSTEM  = platform.system()
 MACHINE = platform.machine()
