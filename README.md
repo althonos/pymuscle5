@@ -17,6 +17,10 @@
 [![Changelog](https://img.shields.io/badge/keep%20a-changelog-8A0707.svg?maxAge=2678400&style=flat-square)](https://github.com/althonos/pymuscle5/blob/main/CHANGELOG.md)
 [![Downloads](https://img.shields.io/badge/dynamic/json?style=flat-square&color=303f9f&maxAge=86400&label=downloads&query=%24.total_downloads&url=https%3A%2F%2Fapi.pepy.tech%2Fapi%2Fprojects%2Fpymuscle5)](https://pepy.tech/project/pymuscle5) -->
 
+**🚨 Please be aware if you plan using this that there are reproducibility issues due to how the internal 
+RNG is seeded! Instead, for a stable and reproducible Multiple Sequence Aligner in Python, have a look
+at [PyFAMSA](https://github.com/althonos/pyfamsa) which wraps [FAMSA2](https://github.com/refresh-bio/FAMSA).**
+
 ## 🗺️ Overview
 
 MUSCLE is widely-used software for making multiple alignments of biological
