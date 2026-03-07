@@ -1,5 +1,5 @@
 # distutils: language = c++
-# cython: language_level=3, linetrace=True
+# cython: language_level=3
 
 from libc.float cimport FLT_MAX
 from libc.stdlib cimport malloc, free, srand
